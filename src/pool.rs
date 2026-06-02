@@ -7,8 +7,8 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use sqlx::PgPool;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use sqlx::PgPool;
 
 /// Pool configuration values.
 pub struct NeonPgConfig {
