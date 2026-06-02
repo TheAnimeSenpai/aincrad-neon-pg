@@ -3,7 +3,7 @@ name = "aincrad-neon-pg"
 version = "0.1.0"
 edition = "2021"
 authors = ["Opeyemi Akinnawo <ope.akinnawo@gmail.com>"]
-license = "UNLICENSED"
+license = "MIT"
 description = "Neon-compatible Postgres pool builder and RLS transaction helpers"
 
 [dependencies]
