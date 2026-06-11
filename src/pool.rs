@@ -51,7 +51,9 @@ pub fn create_pool(cfg: NeonPgConfig) -> Result<PgPool, sqlx::Error> {
 
 /// Cheap liveness check — `SELECT 1`.
 pub async fn healthcheck(pool: &PgPool) -> Result<(), sqlx::Error> {
-    sqlx::query_scalar::<_, i64>("SELECT 1")
+    // A bare integer literal is `int4` in Postgres, so it must be decoded as
+    // `i32` — decoding as `i64` fails with a type mismatch.
+    sqlx::query_scalar::<_, i32>("SELECT 1")
         .fetch_one(pool)
         .await
         .map(|_| ())
