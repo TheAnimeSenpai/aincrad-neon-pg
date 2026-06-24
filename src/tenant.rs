@@ -15,10 +15,17 @@ use uuid::Uuid;
 /// so transaction setup failures propagate cleanly.
 pub type ScopeFuture<'a, T, E> = Pin<Box<dyn Future<Output = Result<T, E>> + Send + 'a>>;
 
-/// Run `f` inside a transaction with `SET LOCAL app.current_tenant_id = $1`.
+/// Run `f` inside a transaction with the tenant id bound as a transaction-local
+/// setting (`app.current_tenant_id`).
 ///
 /// Activates row-level security policies that filter by tenant. The
 /// transaction is committed on success and rolled back on error.
+///
+/// Uses `set_config(name, value, is_local => true)` rather than
+/// `SET LOCAL app.current_tenant_id = $1`: the `SET` command is parsed before
+/// parameter binding, so a bind placeholder (`$1`) is a syntax error. The
+/// `set_config(..., true)` form is the parameterizable equivalent of
+/// `SET LOCAL` and is read back identically via `current_setting(...)`.
 pub async fn with_tenant_scope<T, E, F>(pool: &PgPool, tenant_id: &Uuid, f: F) -> Result<T, E>
 where
     E: From<sqlx::Error>,
@@ -26,7 +33,7 @@ where
 {
     let mut tx = pool.begin().await.map_err(E::from)?;
 
-    sqlx::query("SET LOCAL app.current_tenant_id = $1")
+    sqlx::query("SELECT set_config('app.current_tenant_id', $1, true)")
         .bind(tenant_id.to_string())
         .execute(&mut *tx)
         .await
@@ -69,4 +76,44 @@ where
     }
 
     result
+}
+
+#[cfg(test)]
+mod db_tests {
+    use super::*;
+    use sqlx::Row;
+    use sqlx::postgres::PgPoolOptions;
+
+    // Regression guard for the `SET LOCAL ... = $1` bug: a bind placeholder is a
+    // syntax error in a `SET` statement (parsed before parameter binding), so
+    // every tenant-scoped transaction failed at runtime. `set_config(..., true)`
+    // is the parameterizable equivalent. `#[ignore]` — needs a reachable PG:
+    //
+    //   DATABASE_URL=postgres://gakuin:gakuin@localhost:5433/gakuin_dev \
+    //     cargo test -p aincrad-neon-pg -- --ignored
+    #[tokio::test]
+    #[ignore = "requires a reachable Postgres"]
+    async fn with_tenant_scope_binds_current_tenant_id() {
+        let url = std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://gakuin:gakuin@localhost:5433/gakuin_dev".to_string());
+        let pool = PgPoolOptions::new()
+            .max_connections(1)
+            .connect(&url)
+            .await
+            .expect("Postgres should be reachable");
+
+        let tenant = Uuid::new_v4();
+        let read_back: String = with_tenant_scope(&pool, &tenant, |tx| {
+            Box::pin(async move {
+                let row = sqlx::query("SELECT current_setting('app.current_tenant_id') AS v")
+                    .fetch_one(&mut **tx)
+                    .await?;
+                Ok::<String, sqlx::Error>(row.get("v"))
+            })
+        })
+        .await
+        .expect("tenant scope should set app.current_tenant_id without a syntax error");
+
+        assert_eq!(read_back, tenant.to_string());
+    }
 }
