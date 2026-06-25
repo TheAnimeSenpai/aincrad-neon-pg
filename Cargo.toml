@@ -1,6 +1,6 @@
 [package]
 name = "aincrad-neon-pg"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Opeyemi Akinnawo <ope.akinnawo@gmail.com>"]
 license = "MIT"
@@ -9,3 +9,6 @@ description = "Neon-compatible Postgres pool builder and RLS transaction helpers
 [dependencies]
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "uuid"] }
 uuid = { version = "1", features = ["serde", "v4"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
