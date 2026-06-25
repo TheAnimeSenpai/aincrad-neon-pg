@@ -81,8 +81,8 @@ where
 #[cfg(test)]
 mod db_tests {
     use super::*;
-    use sqlx::Row;
     use sqlx::postgres::PgPoolOptions;
+    use sqlx::Row;
 
     // Regression guard for the `SET LOCAL ... = $1` bug: a bind placeholder is a
     // syntax error in a `SET` statement (parsed before parameter binding), so
